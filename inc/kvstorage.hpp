@@ -38,7 +38,7 @@ public:
             Value value = std::get<1>(record);
             TTL ttl = std::get<2>(record);
             TimePoint expire_time;
-            ttl > 0 ? expire_time=Clock::time_point::max() :  expire_time =Clock::now()+std::chrono::seconds(ttl);
+            ttl == 0 ? expire_time=Clock::time_point::max() :  expire_time =Clock::now()+std::chrono::seconds(ttl);
             base_storage_[key]= {value,expire_time};
             sorted_storage_[key]=base_storage_.find(key);
             if(ttl>0) {
@@ -51,20 +51,26 @@ public:
 
     void set(std::string key, std::string value, uint32_t ttl) {
         TimePoint expire_time;
-        ttl > 0 ? expire_time=Clock::time_point::max() :  expire_time =Clock::now()+std::chrono::seconds(ttl);
-        base_storage_[key]={value,expire_time};
-        sorted_storage_[key]=base_storage_.find(key);
+        if (ttl == 0) {
+            expire_time = Clock::time_point::max();
+        } else {
+            expire_time = Clock::now() + std::chrono::seconds(ttl);
+            ttl_controller_.push({expire_time, key});
+        }
+
+        base_storage_[key] = {value, expire_time};
+        sorted_storage_[key] = base_storage_.find(key);
 
     }
 
     bool remove(std::string_view key) {
         auto base_storage_ptr = base_storage_.find(std::string(key));
-        if (ptr == base_storage_.end()) {
+        if (base_storage_ptr == base_storage_.end()) {
             return false;
         }
-        auto sorted_storage_ptr=sorted_storage.find(std::string(key));
+        auto sorted_storage_ptr=sorted_storage_.find(std::string(key));
         base_storage_.erase(base_storage_ptr);
-        sorted_storage_.erase(sorted_storage);
+        sorted_storage_.erase(sorted_storage_ptr);
         return true;
     }
 
@@ -80,27 +86,27 @@ public:
     }
 
     std::vector<std::pair<std::string, std::string>> getManySorted(std::string_view key, size_t count) {
-        auto it= base_storage_.lower_bound(key);
+        auto it= sorted_storage_.lower_bound(std::string(key));
         std::vector<std::pair<std::string, std::string>> result;
-        while(it!=base_storage_.end() && count!=0){
+        while(it!=sorted_storage_.end() && count!=0){
             result.push_back({it->first,it->second->second.value});
             it++;
+            count--;
         }
         return result;
     }
 
     std::optional<std::pair<std::string, std::string>> removeOneExpiredEntry() {
-        if(ttl_controller_.empty()){
-            return std::nullopt;
-        }
-        while(!ttl_controller_.empty()){
-            auto& ref = ttl_controller_.top();
+        while (!ttl_controller_.empty()) {
+            auto ref = ttl_controller_.top();
             ttl_controller_.pop();
             auto ptr = base_storage_.find(ref.key);
-            if (ptr != base_storage_.end()){
+            if (ptr != base_storage_.end()) {
+                auto value = ptr->second.value;
                 remove(ref.key);
-                break;
+                return std::make_pair(ref.key, value);
             }
         }
-    }      
+        return std::nullopt;
+    } 
 };
