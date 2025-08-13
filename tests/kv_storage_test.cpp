@@ -126,3 +126,85 @@ TEST(KVStorageTest, removeOneExpiredEntry) {
     };
     EXPECT_EQ(result, want_result);
 };
+
+TEST(KVStorageTest, ZeroExpiredExpect) {
+    using Clock = std::chrono::steady_clock;
+    std::tuple<std::string, std::string, uint32_t> init_data[] = {
+        {"f", "6", 0},
+        {"g", "7", 0},
+        {"h", "8", 0},
+        {"i", "9", 0},
+        {"j", "10", 0}
+    };
+    KVStorage<Clock> storage(std::span{init_data});
+    for (int i = 0;i<6;i++){
+        auto  result= storage.removeOneExpiredEntry();
+        EXPECT_FALSE(result.has_value());
+    }
+}
+TEST(KVStorageTest, ChangedTTLinExistingEntry) {
+    using Clock = MockClock;
+
+    KVStorage<Clock> storage(std::span<std::tuple<std::string, std::string, uint32_t>>{});
+    storage.set("key","value",30);
+    storage.set("key","value",100);
+    MockClock::offset = std::chrono::seconds(50);
+    storage.removeOneExpiredEntry();
+    auto result =storage.get("key");
+    EXPECT_TRUE(result.has_value());
+    EXPECT_EQ(result, "value");
+};
+TEST(KVStorageTest, EmptyStorage) {
+    using Clock = std::chrono::steady_clock;
+    KVStorage<Clock> storage(std::span<std::tuple<std::string, std::string, uint32_t>>{});
+    auto result_get = storage.get("key");
+    auto result_getMany = storage.getManySorted("key",3);
+    auto result_remove = storage.remove("key");
+    auto result_removeExpiredOne=storage.removeOneExpiredEntry();
+    EXPECT_FALSE(result_get.has_value());
+    EXPECT_TRUE(result_getMany.empty());
+    EXPECT_FALSE(result_remove);
+    EXPECT_FALSE(result_removeExpiredOne.has_value());
+}
+TEST(KVStorageTest, RemoveAndExpiredEntry) {
+    using Clock = MockClock;
+    KVStorage<Clock> storage(std::span<std::tuple<std::string, std::string, uint32_t>>{});
+    storage.set("key","value",30);
+    EXPECT_TRUE(storage.remove("key"));
+    MockClock::offset=std::chrono::seconds(30);
+    EXPECT_FALSE(storage.removeOneExpiredEntry());
+}
+TEST(KVStorageTest, SortedStorageCheck){
+    using Clock = std::chrono::steady_clock;
+
+    std::tuple<std::string, std::string, uint32_t> init_data1[] = {
+        {"j", "1", 0},
+        {"i", "2", 0},
+        {"h", "3", 0},
+        {"g", "4", 0},
+        {"f", "5", 0},
+        {"e", "6", 0},
+        {"d", "7", 0},
+        {"c", "8", 0},
+        {"b", "9", 0},
+        {"a", "10", 0}
+    };
+    KVStorage<Clock> storage(std::span{init_data1});
+
+    auto result = storage.getManySorted("e",4);
+    std::vector<std::pair<std::string, std::string>> want_result={{"e","6"}, {"f","5"},{"g","4"},{"h","3"}};
+    EXPECT_EQ(result, want_result);
+}
+TEST(KVStorageTest, ManyUpdatesSameKey) {
+    using Clock = MockClock;
+    KVStorage<Clock> storage(std::span<std::tuple<std::string, std::string, uint32_t>>{});
+    for (uint32_t i = 1; i <= 999; ++i) {
+        storage.set("key", "value" + std::to_string(i), i);
+    }
+    storage.set("key","value1010",1010);
+    MockClock::offset = std::chrono::seconds(1000);
+    while (storage.removeOneExpiredEntry()) {}
+    auto result = storage.get("key");
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(result.value(), "value1010");
+}
