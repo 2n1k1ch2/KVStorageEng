@@ -3,11 +3,14 @@
 ## Сборка
 
 ```bash
+git submodule update --init --recursive
 mkdir build
 cd build
 cmake .. -G "MinGW Makefiles"
 mingw32-make.exe
+.\kv_storage_tests.exe  
 ```
+
 
 ## Асимптотика операций
 
