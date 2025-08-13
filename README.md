@@ -6,8 +6,8 @@
 git submodule update --init --recursive
 mkdir build
 cd build
-cmake .. -G "MinGW Makefiles"
-mingw32-make.exe
+cmake 
+make
 .\kv_storage_tests.exe  
 ```
 
@@ -47,7 +47,7 @@ mingw32-make.exe
 8. **Отсортированное хранилище** — проверка корректности порядка при нестандартной инициализации.
 
 
-## Оверхед
+## Оверхед 
 
 32 +(размер key) + 32+(размер value) + 8 (expire_time) = 72 байта
 
