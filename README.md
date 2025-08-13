@@ -6,7 +6,7 @@
 git submodule update --init --recursive
 mkdir build
 cd build
-cmake 
+cmake ..
 make
 .\kv_storage_tests.exe  
 ```
